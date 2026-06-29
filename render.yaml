@@ -1,0 +1,3 @@
+安装命令 (Build Command)：pip install -r requirements.txt
+
+启动命令 (Start Command)：python main.py（由于 Render 会动态分配端口，建议把 main.py 底部的 uvicorn.run(app, host="127.0.0.1", port=8000) 改为 uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))）
