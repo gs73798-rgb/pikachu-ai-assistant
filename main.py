@@ -121,5 +121,12 @@ app.mount("/", StaticFiles(directory="static", html=True), name="static")
 if __name__ == "__main__":
     import uvicorn
 
-    # 本地主进程运行
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+
+
+
+
+    # 从 Render 环境变量中动态获取端口，如果获取不到（比如本地环境）则默认使用 8000
+    port = int(os.environ.get("PORT", 8000))
+
+    # ⚠️ 极其关键：将 host 改为 "0.0.0.0"，允许 Render 的网关进行端口绑定与外网访问
+    uvicorn.run(app, host="0.0.0.0", port=port)
