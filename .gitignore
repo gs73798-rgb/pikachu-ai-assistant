@@ -1,0 +1,13 @@
+# 排除 Python 虚拟环境和缓存
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# 排除敏感配置文件（火山引擎、Dify的密钥绝不能公开！）
+.env
+
+# 排除本地生成的音频缓存文件（避免占用巨额上传空间）
+static/audio/volc_*.mp3
+static/audio/tts_*.mp3

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>宝可梦 AI 助手 - 皮卡丘</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        body {
+            background: #eddcb9; /* 复古掌机外壳质感色底 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace, sans-serif;
+        }
+
+        /* 手机 App 容器：重塑为复古偏硬朗的高级黑掌机外框 */
+        .app-container {
+            width: 390px;
+            height: 800px;
+            background: #252525;
+            box-shadow: 0 16px 32px rgba(0,0,0,0.3);
+            border-radius: 28px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 10px solid #1a1a1a;
+            position: relative;
+        }
+
+        /* 掌机顶部状态栏 */
+        .app-header {
+            background: #832222; /* 经典宝可梦图鉴红 */
+            color: #fff;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+            letter-spacing: 2px;
+            border-bottom: 4px solid #521111;
+            z-index: 10;
+            text-shadow: 1px 1px 0px #000;
+        }
+
+        /* ==========================================
+           【方案一核心】：复古像素对战背景草丛 (纯 CSS 像素级艺术实现)
+           ========================================== */
+        /* 找到这一段并进行替换 */
+        #avatar-container {
+            height: 600px;
+            flex: 1;
+
+            /* ==========================================
+               【换上自己的画】：引入本地上传的背景图
+               ========================================== */
+            background-image: url('/background/bc1.png'); 
+            background-size: cover;       /* 强制图片完美填满容器 */
+            background-position: center;  /* 图片居中对齐 */
+            background-repeat: no-repeat; /* 防止图片重复平铺 */
+
+            position: relative;
+            width: 100%;
+        }
+
+        /* 完美契合掌机风格的复古像素聊天气泡 */
+        .pikachu-bubble {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%) scale(0.8);
+            background: #ffffff;
+            color: #111111;
+            padding: 14px 18px;
+            /* 锯齿感直角边框，模仿旧世代游戏机对话框 */
+            border: 4px solid #000000;
+            font-size: 14px;
+            font-weight: bold;
+            line-height: 1.6;
+            width: 260px;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.15);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            z-index: 100;
+        }
+        /* 像素风对话框小箭头 */
+        .pikachu-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 10px 10px 0;
+            border-style: solid;
+            border-color: #000000 transparent;
+            display: block;
+            width: 0;
+        }
+        .pikachu-bubble.show {
+            opacity: 1;
+            transform: translateX(-50%) scale(1);
+        }
+
+        /* 底部操作控制台栏 */
+        .app-input-bar {
+            padding: 18px;
+            display: flex;
+            background: #3a3a3a;
+            border-top: 4px solid #1a1a1a;
+            z-index: 10;
+        }
+        input {
+            flex: 1;
+            border: 3px solid #000;
+            padding: 10px 14px;
+            font-size: 14px;
+            background: #f0f0f0;
+            outline: none;
+            font-family: inherit;
+        }
+        input:focus {
+            background: #ffffff;
+        }
+        button {
+            background: #ffd100; /* 皮卡丘明黄色按钮 */
+            color: #000;
+            border: 3px solid #000;
+            padding: 10px 20px;
+            margin-left: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px #000;
+            font-family: inherit;
+        }
+        button:hover {
+            background: #ffe055;
+        }
+        button:active {
+            transform: translate(1px, 1px);
+            box-shadow: 1px 1px 0px #000;
+        }
+
+        /* 兼容性修复 */
+        .el-pagination .el-input__inner {
+            -moz-appearance: textfield;
+            appearance: auto;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="app-header">Lv.25 PIKACHU</div>
+
+    <div id="avatar-container">
+        <div id="pikachuBubble" class="pikachu-bubble">皮卡！野生皮卡丘跳出来了！</div>
+    </div>
+
+    <div class="app-input-bar">
+        <input type="text" id="userInput" placeholder="输入指令对战/聊天..." onkeydown="if(event.keyCode==13) sendMessage()">
+        <button onclick="sendMessage()">发送</button>
+    </div>
+</div>
+
+<script>
+    let scene, camera, renderer, mixer, clock;
+    let pikachuModel = null;
+    let testCube = null;
+    let conversationId = "";
+    let bubbleTimer = null;
+    let bubbleDiv = null;
+
+    let currentSFXAudio = null;
+    let currentTTSAudio = null;
+
+    let actions = {};
+    let activeAction = null;
+
+    function init3D() {
+        const container = document.getElementById('avatar-container');
+        bubbleDiv = document.getElementById('pikachuBubble');
+
+        if (container.clientWidth === 0 || container.clientHeight === 0) {
+            requestAnimationFrame(init3D);
+            return;
+        }
+
+        clock = new THREE.Clock();
+        scene = new THREE.Scene();
+
+        // 建立广角相机，略微放低视线，制造从下往上看怪兽的对战临场感
+        camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 100);
+        camera.position.set(0, 0.3, 2.2);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        // 稍微调高灯光强度，配合复古明亮的室外像素风格
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+        scene.add(ambientLight);
+        const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight1.position.set(5, 8, 5);
+        scene.add(dirLight1);
+
+        console.log("正在尝试加载模型...");
+        const loader = new THREE.GLTFLoader();
+        loader.load('/models/pikachu2.glb', function (gltf) {
+            console.log("🚀 模型文件加载成功！", gltf);
+
+            pikachuModel = gltf.scene;
+
+            // 中心归零及贴地算法
+            const box = new THREE.Box3().setFromObject(pikachuModel);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+
+            pikachuModel.position.x += (pikachuModel.position.x - center.x);
+            pikachuModel.position.z += (pikachuModel.position.z - center.z);
+            // 微微往下陷一点点（-0.05），让它更自然地“踩”在下方的像素草丛线上
+            pikachuModel.position.y += (pikachuModel.position.y - box.min.y) - 0.05;
+
+            // 保持最完美的黄金大小系数（0.6），防止穿顶
+            const targetHeight = 0.01;
+            const currentHeight = size.y;
+            const scaleFactor = targetHeight / currentHeight;
+
+            pikachuModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            scene.add(pikachuModel);
+
+            // 镜头死死锁定皮卡丘中心
+            camera.position.set(0, 0.35, 2.0);
+            camera.lookAt(0, 0.25, 0);
+            camera.updateProjectionMatrix();
+
+            // 解析骨骼动画
+            if (gltf.animations && gltf.animations.length > 0) {
+                mixer = new THREE.AnimationMixer(pikachuModel);
+                gltf.animations.forEach((clip) => {
+                    const action = mixer.clipAction(clip);
+                    if (clip.name === 'Jump') {
+                        action.loop = THREE.LoopOnce;
+                        action.clampWhenFinished = true;
+                    }
+                    actions[clip.name] = action;
+                });
+
+                if (actions['Idle']) {
+                    fadeToAction('Idle', 0.0);
+                } else {
+                    fadeToAction(gltf.animations[0].name, 0.0);
+                }
+            }
+
+            if (bubbleDiv) {
+                bubbleDiv.classList.add('show');
+                bubbleTimer = setTimeout(() => {
+                    bubbleDiv.classList.remove('show');
+                }, 3500);
+            }
+
+        }, function(xhr) {
+        }, function (error) {
+            console.error("❌ 模型加载失败！", error);
+        });
+
+        animate();
+    }
+
+    function fadeToAction(name, duration = 0.3) {
+        const nextAction = actions[name];
+        if (!nextAction) return;
+
+        if (activeAction && activeAction !== nextAction) {
+            activeAction.fadeOut(duration);
+        }
+
+        nextAction
+            .reset()
+            .setEffectiveTimeScale(1)
+            .setEffectiveWeight(1)
+            .fadeIn(duration)
+            .play();
+
+        activeAction = nextAction;
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const delta = clock.getDelta();
+        if (mixer) mixer.update(delta);
+        renderer.render(scene, camera);
+    }
+
+    function stopAllAudio() {
+        if (currentSFXAudio) { currentSFXAudio.pause(); currentSFXAudio = null; }
+        if (currentTTSAudio) { currentTTSAudio.pause(); currentTTSAudio = null; }
+    }
+
+    async function sendMessage() {
+        const inputEl = document.getElementById('userInput');
+        const text = inputEl.value.trim();
+        if(!text) return;
+
+        inputEl.value = '';
+        stopAllAudio();
+
+        showBubble(`🧑 Trainer: "${text}" \n\n(PIKACHU 正在蓄力...)`);
+        fadeToAction('Jump', 0.1);
+
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: text, conversation_id: conversationId })
+            });
+
+            const data = await response.json();
+            conversationId = data.conversation_id;
+
+            playSFXAndAnimate(data.answer);
+        } catch (e) {
+            showBubble('皮卡..！对战雷达受到电磁干扰，连接中断！');
+            fadeToAction('Idle', 0.3);
+        }
+    }
+
+    function showBubble(text) {
+        if(bubbleTimer) clearTimeout(bubbleTimer);
+        if (bubbleDiv) {
+            bubbleDiv.innerText = text;
+            bubbleDiv.classList.add('show');
+        }
+    }
+
+    async function playSFXAndAnimate(answerText) {
+        showBubble(answerText);
+        const sfxList = ['/audio/nomal.mp3', '/audio/nomal2.mp3', '/audio/nomal3.mp3', '/audio/nomal4.mp3'];
+        const randomSFX = sfxList[Math.floor(Math.random() * sfxList.length)];
+
+        try {
+            currentSFXAudio = new Audio(randomSFX);
+            currentSFXAudio.volume = 0.6;
+
+            currentSFXAudio.onended = async () => {
+                try {
+                    const response = await fetch('/api/tts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: answerText })
+                    });
+                    const data = await response.json();
+
+                    currentTTSAudio = new Audio(data.audio_url);
+                    currentTTSAudio.volume = 1.0;
+
+                    fadeToAction('Dance', 0.2); // 播放回答时的萌系舞蹈动作
+
+                    currentTTSAudio.onended = () => {
+                        fadeToAction('Idle', 0.4);
+                        bubbleTimer = setTimeout(() => {
+                            if (bubbleDiv) bubbleDiv.classList.remove('show');
+                        }, 4000);
+                    };
+
+                    currentTTSAudio.onerror = () => clearAllEffects();
+                    await currentTTSAudio.play();
+
+                } catch (ttsErr) {
+                    clearAllEffects();
+                }
+            };
+
+            currentSFXAudio.onerror = () => clearAllEffects();
+            await currentSFXAudio.play();
+
+        } catch (error) {
+            clearAllEffects();
+        }
+    }
+
+    function clearAllEffects() {
+        stopAllAudio();
+        fadeToAction('Idle', 0.3);
+        if (bubbleDiv) bubbleDiv.classList.remove('show');
+    }
+
+    window.onload = () => {
+        requestAnimationFrame(init3D);
+    };
+</script>
+</body>
+</html>
